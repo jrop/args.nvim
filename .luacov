@@ -1,0 +1,9 @@
+return {
+  include = {
+    'lua/args$',
+  },
+  -- Tick mode never saves on exit, so with its default 100-line interval the
+  -- last chunk of executed lines would be missing from every report.
+  tick = true,
+  savestepsize = 1,
+}

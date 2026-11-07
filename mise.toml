@@ -1,0 +1,51 @@
+################################################################################
+## Tools
+################################################################################
+
+[tools]
+"asdf:mise-plugins/mise-lua" = "5.1.5"
+neovim = "0.12.6"
+stylua = "2.6.0"
+cargo-binstall = "1.26.2"
+"cargo:emmylua_ls" = { version = "0.25.1", depends = ["cargo-binstall"] }
+"cargo:emmylua_check" = { version = "0.25.1", depends = ["cargo-binstall"] }
+
+################################################################################
+# Env
+################################################################################
+
+[env]
+ASDF_LUA_LUAROCKS_VERSION = "3.12.2"
+_.source = { path = "./scripts/env.sh", tools = true }
+
+################################################################################
+# Tasks
+################################################################################
+
+[tasks]
+lint = "emmylua_check --warnings-as-errors --ignore '.prefix/**/*.*' ."
+fmt = "stylua ."
+"fmt:check" = "stylua --check ."
+
+[tasks."test:prepare"]
+run = "luarocks test --prepare"
+
+[tasks.test]
+depends = ["test:prepare"]
+run = "busted --verbose"
+
+[tasks."test:coverage"]
+depends = ["test:prepare"]
+run = '''
+rm -f ./luacov.*.*
+busted --coverage --verbose
+luacov
+awk '/^Summary$/{flag=1;next} flag{print}' luacov.report.out
+'''
+
+[tasks.ci]
+run = '''
+mise run fmt:check
+mise run lint
+mise run test
+'''
