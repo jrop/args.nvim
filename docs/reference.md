@@ -91,16 +91,32 @@ local args = cli.parse({
 -- }
 ```
 
-The first word that is not an option selects the command and is consumed, so it
-does not appear in `_`. The command's result nests under its name, with its own
-`_`. Options before the command use the parent spec, and options after it use
-the command's spec. A command spec may declare commands of its own.
+The first word that is not an option (other than `--`) selects the command and
+is consumed, so it does not appear in `_`. The command's result nests under its
+name, with its own `_`. Options before the command use the parent spec, and
+options after it use the command's spec.
 
-When a spec declares commands and the first positional is not one of them,
-parsing raises `unknown command: <word>`. A spec with commands may still be used
-without one; the caller decides whether a command is required. The `--`
-terminator ends parsing before a command is selected, so its remaining words stay
-positionals at the current level.
+A command is selected while the current level is scanning its vector. Once a
+command matches, the rest of the vector belongs to that command's spec; the
+parent does not resume parsing after the child returns.
+
+Each command is independent:
+
+- A command spec may declare commands of its own.
+- Parent options are not inherited. Declare an option in the command spec to
+  use it after the command name.
+- Command names are spec keys, so a command has no aliases.
+- An empty command spec still produces a nested result, `{ _ = {} }`.
+
+At a level that declares commands, the first word that is not an option and is
+not `--` must be one of those command names. Any other word raises
+`unknown command: <word>`, so such a level has no ordinary positionals. Use `--`
+to bypass command selection; the words after it stay positionals at the current
+level. At a level without commands, every word that is not an option is a
+positional.
+
+A spec with commands may still be used without one; the caller decides whether
+a command is required by checking the command keys after parsing.
 
 ## Command-line forms
 
@@ -109,10 +125,12 @@ positionals at the current level.
 - `-n` for a short option.
 - `-abc` for a group of short options.
 - `-o value` for a short option that takes a value.
-- A command name as the first positional selects its nested spec.
+- A command name as the first word that is not an option and is not `--` selects
+  its nested spec at a level that declares commands.
 - `--` to end option parsing; the remaining words become positionals and do not
   select a command.
-- `-` is never an option; at a level without commands it is a positional.
+- `-` is never an option; it is a positional at a level without commands, and
+  an unknown command at a level with commands.
 
 Short options do not accept attached values: `-oFILE` is not supported. A short
 option that takes a value must be the last option in its group, so
@@ -148,7 +166,7 @@ Parsing raises for:
 - A missing value for a string or number option.
 - A short value option that is not the last in its group.
 - A non-numeric word for a number option.
-- An unknown command when the spec declares commands.
+- An unknown command when the current spec declares commands.
 - A non-string argument in `argv`.
 
 Specification validation raises for:
@@ -170,6 +188,8 @@ Specification validation raises for:
 - Options are not inherited. A parent option used after a command is unknown
   unless the command spec declares it.
 - No command aliases. Command names are the spec keys.
+- A level that declares commands has no ordinary positionals. Use `--` to keep
+  words as positionals instead.
 - No defaults. Use `args['--port'] or 8080`.
 - No required options or commands. Check `args['--name']` or `args.add` after
   parsing.

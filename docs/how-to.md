@@ -93,8 +93,95 @@ under its name, so test with `if args.add then`. Options before the command use
 the parent spec, and options after it use the command's spec. A command spec may
 declare its own subcommands.
 
-Parent options are not inherited. Declare an option in the command spec to use
-it after the command name.
+At a level that declares commands, the first word that is not an option must be
+one of those command names. Any other word raises `unknown command: <word>`, so
+such a level has no ordinary positionals. `--` is the exception: it ends parsing
+before a command is selected and keeps the remaining words as positionals.
+
+## Nest subcommands
+
+A command spec is a spec like any other, so it can declare commands of its own:
+
+```lua
+local args = cli.parse({
+  remote = {
+    ['--fetch'] = 'boolean',
+    add = {
+      ['--tags'] = { 'string' },
+    },
+  },
+}, { 'remote', '--fetch', 'add', '--tags', 'v1', 'origin' })
+
+-- args.remote['--fetch'] == true
+-- args.remote.add['--tags'] == { 'v1' }
+-- args.remote.add._ == { 'origin' }
+```
+
+Each command word consumes itself and passes the rest of the vector to the next
+level, so the nesting follows the words in order. Options before a command use
+that level's spec, and options after it use the child spec.
+
+## Share an option with a subcommand
+
+Options are not inherited, so declare an option in every spec that accepts it:
+
+```lua
+local spec = {
+  ['--verbose'] = 'boolean',
+  add = {
+    ['--verbose'] = 'boolean',
+    ['--force'] = 'boolean',
+  },
+}
+
+local args = cli.parse(spec, { 'add', '--verbose', '--force' })
+
+-- args.add['--verbose'] == true
+-- args.add['--force'] == true
+```
+
+The two `--verbose` entries are separate options in separate results. Repeating
+the declaration is what makes the option available after the command name.
+
+## Dispatch on the selected command
+
+The result has a key for each command that was selected, so use ordinary `if`
+checks:
+
+```lua
+local args = cli.parse({
+  add = {},
+  remove = {},
+}, { 'remove', 'file' })
+
+if args.add then
+  -- run add
+elseif args.remove then
+  -- run remove
+end
+```
+
+A command key is present only when that command was selected, so an absent key
+is the signal that the caller chose another command or none.
+
+## Require a subcommand
+
+The parser does not enforce a command, so check for one after parsing:
+
+```lua
+local args = cli.parse({
+  add = {},
+  remove = {},
+}, {})
+
+local selected = args.add or args.remove
+if not selected then
+  error('expected add or remove', 0)
+end
+```
+
+Use the same check to print help or return a status when the caller requires a
+command.
 
 ## Pass a negative number
 
@@ -156,3 +243,23 @@ it('collects tags', function()
   assert.are.same({ _ = {}, ['--tag'] = { 'a', 'b' } }, args)
 end)
 ```
+
+## Publish a release
+
+Publishing requires a clean working tree, a `v*` tag at `HEAD` that has already
+been pushed, and an authenticated `gh` CLI. Create the tag and run the release
+task:
+
+```sh
+git tag v0.1.0
+git push origin v0.1.0
+mise run release
+```
+
+The task runs `mise run ci`, copies `lua/args.lua` to the `args.lua` asset, and
+writes `args.lua.sha256`. It checks the copied asset with plain Lua 5.1 before
+uploading, then creates the GitHub release with generated notes.
+
+The task refuses to publish when `HEAD` is not at a `v*` tag, the working tree
+is dirty, or the remote tag does not exist. This publishes a public release, so
+only a maintainer should run it.

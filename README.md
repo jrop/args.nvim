@@ -34,20 +34,63 @@ A spec entry is one of four things:
 - A subcommand: a nested spec under an unprefixed name, such as
   `add = { ['--force'] = 'boolean' }`.
 
-Positionals are always returned in `_`. Within a level, options may appear
-before, after, or between positionals. A command word selects its nested spec
-and nests that level's result under the command name:
+Positionals are always returned in `_`. Within a level without commands,
+options may appear before, after, or between positionals.
+
+## Tutorial: build a command tree
+
+A command is an unprefixed spec key whose value is another spec. An example of
+this is a `remote` command with its own `add` subcommand:
 
 ```lua
 local args = cli.parse({
   ['--verbose'] = 'boolean',
-  add = { ['--force'] = 'boolean' },
-}, { '--verbose', 'add', '--force', 'file' })
+
+  remote = {
+    ['--fetch'] = 'boolean',
+
+    add = {
+      ['--tags'] = { 'string' },
+    },
+  },
+}, { '--verbose', 'remote', '--fetch', 'add', '--tags', 'v1', 'origin' })
 
 -- args['--verbose'] == true
--- args.add._ == { 'file' }
--- args.add['--force'] == true
+-- args.remote['--fetch'] == true
+-- args.remote.add['--tags'] == { 'v1' }
+-- args.remote.add._ == { 'origin' }
 ```
+
+The parser reads the vector one level at a time:
+
+1. `--verbose` appears before the command, so the parent spec handles it.
+2. `remote` is the first word that is not an option, so it selects the `remote`
+   spec and is consumed.
+3. `--fetch` appears before the next command, so the `remote` spec handles it.
+4. `add` selects the `remote.add` spec.
+5. `--tags v1` and `origin` belong to `add`, so the tag is stored and `origin`
+   becomes that level's only positional.
+
+The selected command's key is present in the result, so the caller dispatches
+on it:
+
+```lua
+if args.remote then
+  if args.remote.add then
+    -- run `remote add`
+  end
+end
+```
+
+Options are not inherited. The example declares `--fetch` in the `remote` spec,
+so `remote --fetch add ...` works; the same option after `add` would fail unless
+the `add` spec also declares it. A command spec may nest further commands the
+same way.
+
+The parser does not require a command. If the caller needs one, test the
+command keys after parsing and raise or print help in ordinary code. For the
+complete set of command rules, see the
+[reference](docs/reference.md#subcommands).
 
 ## Requirements
 
@@ -58,6 +101,26 @@ The module itself calls no Neovim API, so a plugin, a standalone Lua script, or
 a test helper can require it.
 
 ## Install
+
+### From a GitHub release
+
+Each release attaches `args.lua` and `args.lua.sha256`. Download the module,
+verify it, and install it where Neovim can require it:
+
+```sh
+version=v0.1.0
+base="https://github.com/jrop/args.nvim/releases/download/$version"
+curl -fsSLo args.lua "$base/args.lua"
+curl -fsSLo args.lua.sha256 "$base/args.lua.sha256"
+sha256sum -c args.lua.sha256   # or: shasum -a 256 -c args.lua.sha256
+mkdir -p ~/.local/share/nvim/site/lua
+install -m 644 args.lua ~/.local/share/nvim/site/lua/args.lua
+```
+
+The file is the same module as `lua/args.lua`, so `require 'args'` loads it
+from the runtime path.
+
+### From a checkout
 
 Clone the repository into a Neovim package directory:
 

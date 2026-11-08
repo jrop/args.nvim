@@ -27,6 +27,7 @@ All tasks use `mise`:
 - `mise run test` - run busted under Neovim 0.12.6's LuaJIT
 - `mise run test:coverage` - test with luacov (covers `lua/args` only)
 - `mise run ci` - `fmt:check` then `lint` then `test`
+- `mise run release` - publish the current `v*` tag to GitHub (maintainers only)
 
 Initialize the type-stub submodule after cloning:
 
@@ -91,6 +92,9 @@ code in sync.
 - Keep the canonical-key rule: aliases write to the declared spelling.
 - Do not add features the caller can write in ordinary code (defaults,
   requiredness, help).
+- The release task publishes `lua/args.lua` as the single-file `args.lua` asset
+  plus an `args.lua.sha256` checksum. It refuses an untagged `HEAD`, a dirty
+  tree, or a tag missing from the remote.
 
 ## Test environment
 

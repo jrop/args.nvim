@@ -21,18 +21,45 @@ level's spec is a flat map, and a command simply points at another flat map. Tha
 is the `arg` model extended by nesting, and it is why the parser fits in a screen
 or two.
 
-## Commands scope their options
+## Commands are nested specs
 
-A command word is the first word that is not an option, and it must match a key
-in the current spec. An example is `--verbose add --force file`: `--verbose` is
-parsed by the parent spec, `add` selects the child spec, and `--force` and `file`
-belong to it. The result nests, so the command's options cannot collide with the
-parent's and each level has its own `_`.
+A command word gives the rest of the argument vector to another flat spec. An
+example is `--verbose add --force file`: `--verbose` is parsed by the parent
+spec, `add` selects the child spec, and `--force` and `file` belong to it. The
+result nests, so the command's options cannot collide with the parent's and each
+level has its own `_`.
+
+The parser recognizes a command only when the word it is reading is neither an
+option nor the `--` terminator. That rule makes the boundary unambiguous:
+options before the word belong to the level being parsed, and the command owns
+everything after it. There is no grammar tree, no step list, and no second
+collection phase. A command is another entry in the same flat map, which is why
+nested commands need no extra parser machinery.
+
+Command names are the spec keys themselves. An example is `add = { ... }`, which
+declares both the name and its spec, so there is no separate alias table for
+commands.
+
+## Commands make ownership explicit
 
 Options are not inherited. An example is using a parent-only `--verbose` after
 `add`: the child spec does not declare it, so the parser raises. Repeating the
-option in the child spec is the explicit way to share it. A command spec may
-declare further commands, which nest in the same way.
+option in the child spec is the explicit way to share it. That duplication is
+the cost of keeping each level self-contained; in exchange, reading one spec
+tells you every option that level accepts.
+
+At a level that declares commands, the first word that is not an option must
+name one, unless it is the `--` terminator. An example is `add` when the spec
+declares only `remove`: the parser raises `unknown command: add` instead of
+collecting the word as a positional.
+This strictness catches a typo in a command name, but it also means such a level
+has no ordinary positionals. `--` is the escape hatch: it ends option and
+command processing, so the remaining words stay positionals at the current
+level.
+
+The caller decides whether a command is required. After parsing, test the
+command keys and add the policy in ordinary code. The parser only reports what
+was selected.
 
 ## Types are strings, repetition is an array
 
