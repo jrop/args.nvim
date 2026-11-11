@@ -12,7 +12,8 @@
   },
   "workspace": {
     "ignoreDir": [
-      ".prefix"
+      ".prefix",
+      "dist"
     ],
     "library": [
       "$VIMRUNTIME",

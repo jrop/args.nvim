@@ -3,7 +3,7 @@
 ################################################################################
 
 [tools]
-"asdf:mise-plugins/mise-lua" = "5.1.5"
+"asdf:mise-plugins/mise-lua" = { version = "5.1.5", install_env = { ASDF_LUA_LUAROCKS_VERSION = "3.12.2" } }
 neovim = "0.12.6"
 stylua = "2.6.0"
 # `mise run release` publishes through the gh CLI:
@@ -17,7 +17,6 @@ cargo-binstall = "1.26.2"
 ################################################################################
 
 [env]
-ASDF_LUA_LUAROCKS_VERSION = "3.12.2"
 _.source = { path = "./scripts/env.sh", tools = true }
 
 ################################################################################
@@ -57,51 +56,36 @@ description = "Publish the current v* tag as a GitHub release"
 run = '''
 set -eu
 
-# `git describe` fails unless HEAD is exactly at a tag. Restricting the match
-# to v* keeps unrelated tags from being mistaken for releases.
-tag="$(git describe --tags --exact-match --match 'v*' HEAD 2>/dev/null || true)"
-if [ -z "$tag" ]; then
+# `--exact-match` refuses a commit that is not itself tagged.
+tag="$(git describe --tags --exact-match --match 'v*' HEAD 2>/dev/null)" || {
   echo "release: HEAD must be at a v* tag" >&2
   exit 1
-fi
+}
 
 git submodule update --init --recursive
-if [ -n "$(git status --porcelain)" ]; then
+test -z "$(git status --porcelain)" || {
   echo "release: working tree is not clean" >&2
   exit 1
-fi
+}
 
 mise run ci
 
-tmp="$(mktemp -d)"
-trap 'rm -rf "$tmp"' EXIT
-
 # The release serves the module as a single file, so a user can drop it into a
 # `lua/` directory and `require 'args'` without cloning the repository.
-cp lua/args.lua "$tmp/args.lua"
+mkdir -p dist
+cp lua/args.lua dist/args.lua
 
 # Run the published copy through plain Lua 5.1, and prepend its directory
 # inside the chunk. mise's `lua` shim replaces LUA_PATH in the environment, so
 # setting package.path here is what makes `require 'args'` load the copy.
-lua -e "package.path = '$tmp/?.lua;' .. package.path; local cli = require 'args'; local args = cli.parse({ add = { ['--force'] = 'boolean' } }, { 'add', '--force', 'file' }); assert(args.add['--force'] == true and args.add._[1] == 'file')"
+lua -e "package.path = 'dist/?.lua;' .. package.path; local cli = require 'args'; local args = cli.parse({ add = { ['--force'] = 'boolean' } }, { 'add', '--force', 'file' }); assert(args.add['--force'] == true and args.add._[1] == 'file')"
 
-(
-  cd "$tmp"
-  if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum args.lua > args.lua.sha256
-  else
-    shasum -a 256 args.lua > args.lua.sha256
-  fi
-)
+# Hash from inside dist so the checksum names `args.lua`.
+(cd dist && shasum -a 256 args.lua > args.lua.sha256)
 
-# --verify-tag refuses to create a release for a tag that has not been pushed,
-# which keeps the uploaded artifact tied to the tag GitHub will serve.
 gh release create "$tag" \
-  "$tmp/args.lua" \
-  "$tmp/args.lua.sha256" \
-  --title "$tag" \
+  dist/args.lua \
+  dist/args.lua.sha256 \
   --generate-notes \
   --verify-tag
-
-echo "published $tag"
 '''
