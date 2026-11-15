@@ -1,4 +1,1 @@
-.prefix/
 dist/
-*.src.rock
-luacov.*.out

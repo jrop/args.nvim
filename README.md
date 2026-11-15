@@ -95,7 +95,7 @@ complete set of command rules, see the
 ## Requirements
 
 - A Lua 5.1 environment, such as LuaJIT
-- Neovim 0.10 or newer for the test suite
+- [mise](https://mise.jdx.dev) for the test suite, which installs its own Neovim
 
 The module itself calls no Neovim API, so a plugin, a standalone Lua script, or
 a test helper can require it.
@@ -173,16 +173,15 @@ All tasks use `mise`:
 mise run fmt          # format with stylua
 mise run fmt:check    # check formatting
 mise run lint         # type-check with emmylua_check
-mise run test         # run busted under Neovim
+mise run test         # run the specs under Neovim 0.12.6
 mise run test:coverage
+mise run test:version nightly   # run the specs under another Neovim
 mise run ci           # fmt:check, lint, test
 ```
 
-Initialize the busted type stubs after cloning:
-
-```sh
-git submodule update --init --recursive
-```
+The test runner is [test.nvim](https://github.com/jrop/test.nvim), vendored at
+`lua/args/vendor/test.lua` by `nvim-bundle`. To move it to a newer release, run
+`mise exec -- nvim-bundle update` rather than editing the generated file.
 
 ## License
 

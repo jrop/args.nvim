@@ -24,21 +24,22 @@ All tasks use `mise`:
 - `mise run fmt` - format with stylua
 - `mise run fmt:check` - check formatting
 - `mise run lint` - type-check with `emmylua_check` (warnings are errors)
-- `mise run test` - run busted under Neovim 0.12.6's LuaJIT
-- `mise run test:coverage` - test with luacov (covers `lua/args` only)
+- `mise run test` - run the specs under Neovim 0.12.6
+- `mise run test:version [--coverage] <version>` - run the specs under one
+  Neovim version, which mise installs first (`nightly` is refreshed when its tag
+  moves)
+- `mise run test:coverage` - run the 0.12.6 specs with line coverage of
+  `lua/args.lua`
 - `mise run ci` - `fmt:check` then `lint` then `test`
 - `mise run release` - publish the current `v*` tag to GitHub (maintainers only)
 
-Initialize the type-stub submodule after cloning:
+The specs run on test.nvim's own runner, so the suite needs no Lua, luarocks,
+or busted install. Run one spec file, or narrow by case name, by invoking the
+vendored file directly:
 
 ```sh
-git submodule update --init --recursive
-```
-
-Run one spec directly after `mise run test:prepare`:
-
-```sh
-mise exec -- busted spec/args_spec.lua
+mise exec -- nvim --clean -l lua/args/vendor/test.lua spec/args_spec.lua
+mise exec -- nvim --clean -l lua/args/vendor/test.lua --filter 'alias'
 ```
 
 ## Architecture
@@ -47,7 +48,12 @@ mise exec -- busted spec/args_spec.lua
   option scanning, type conversion, and result assembly.
 - **`spec/args_spec.lua`** - black-box tests. Each case passes a spec and a
   literal argument vector and compares the result or catches the error.
-- **`library/busted`** - git submodule with busted type stubs (stylua-ignored).
+- **`lua/args/vendor/test.lua`** - test.nvim (spec API, assertions, runner,
+  and coverage), vendored by `nvim-bundle` from `nvim-bundle.json`. The file is
+  generated and stylua-ignored, so change the pin and run `nvim-bundle install`
+  rather than editing it. Specs import the spec API from it, i.e., `describe`,
+  `it`, and `assert` are locals, not busted globals. Its `assert.deep_equal`
+  takes `(got, want)`.
 
 The spec is built into `aliases`, `handlers`, and `commands` before parsing, and
 each command spec is built the same way. Parsing is one pass over `argv` per
@@ -98,7 +104,7 @@ code in sync.
 
 ## Test environment
 
-The suite runs host-side under busted on Neovim's LuaJIT. The tests are
+The suite runs host-side on test.nvim's runner under Neovim's LuaJIT. The tests are
 black-box: they exercise only `cli.parse`, so an internal refactor that keeps
 the public result unchanged must keep the suite green.
 

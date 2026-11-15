@@ -224,23 +224,33 @@ options; the caller decides what to print.
 
 ## Test the parser
 
-The suite runs under busted on Neovim's LuaJIT. Prepare the dependencies once,
-then run one spec directly:
+The suite runs on test.nvim's own runner under Neovim's LuaJIT, so it needs no
+Lua, luarocks, or busted install. Run one spec file, or narrow the run by case
+name, by invoking the vendored runner directly:
 
 ```sh
-mise run test:prepare
-mise exec -- busted spec/args_spec.lua
+mise exec -- nvim --clean -l lua/args/vendor/test.lua spec/args_spec.lua
+mise exec -- nvim --clean -l lua/args/vendor/test.lua --filter 'alias'
 ```
 
-A test passes a spec and a literal argument vector:
+The runner's spec API is a module rather than a set of globals, so each spec
+file imports `describe`, `it`, and `assert` as locals:
+
+Its `assert.deep_equal` takes the actual value first, i.e., `(got, want)`. A
+test passes a spec and a literal argument vector:
 
 ```lua
+local Test = require 'args.vendor.test'
+local cli = require 'args'
+local describe, it = Test.describe, Test.it
+local assert = Test.assert
+
 it('collects tags', function()
   local args = cli.parse({
     ['--tag'] = { 'string' },
   }, { '--tag', 'a', '--tag', 'b' })
 
-  assert.are.same({ _ = {}, ['--tag'] = { 'a', 'b' } }, args)
+  assert.deep_equal(args, { _ = {}, ['--tag'] = { 'a', 'b' } })
 end)
 ```
 
@@ -257,7 +267,7 @@ mise run release
 ```
 
 The task runs `mise run ci`, copies `lua/args.lua` to the `args.lua` asset, and
-writes `args.lua.sha256`. It checks the copied asset with plain Lua 5.1 before
+writes `args.lua.sha256`. It loads the copied asset in a clean Neovim before
 uploading, then creates the GitHub release with generated notes.
 
 The task refuses to publish when `HEAD` is not at a `v*` tag, the working tree

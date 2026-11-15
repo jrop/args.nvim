@@ -12,12 +12,10 @@
   },
   "workspace": {
     "ignoreDir": [
-      ".prefix",
       "dist"
     ],
     "library": [
-      "$VIMRUNTIME",
-      "library/busted"
+      "$VIMRUNTIME"
     ]
   }
 }

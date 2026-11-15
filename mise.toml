@@ -2,47 +2,76 @@
 ## Tools
 ################################################################################
 
+# Both emmylua tools ship in one GitHub release, and mise lists each repository
+# once, so an alias gives each tool its own name and install directory.
+[tool_alias]
+emmylua_check = "github:EmmyLuaLs/emmylua-analyzer-rust"
+emmylua_ls = "github:EmmyLuaLs/emmylua-analyzer-rust"
+
 [tools]
-"asdf:mise-plugins/mise-lua" = { version = "5.1.5", install_env = { ASDF_LUA_LUAROCKS_VERSION = "3.12.2" } }
-neovim = "0.12.6"
+"aqua:neovim/neovim" = "0.12.6"
 stylua = "2.6.0"
-# `mise run release` publishes through the gh CLI:
+# `mise run release` publishes through the gh CLI.
 gh = "2.103.3"
-cargo-binstall = "1.26.2"
-"cargo:emmylua_ls" = { version = "0.25.1", depends = ["cargo-binstall"] }
-"cargo:emmylua_check" = { version = "0.25.1", depends = ["cargo-binstall"] }
+"github:jrop/nvim-bundle" = "0.4.1"
+
+[tools.emmylua_check]
+version = "0.25.1"
+bin = "emmylua_check"
+platforms.linux-x64 = { asset_pattern = "emmylua_check-linux-x64.tar.gz" }
+platforms.macos-arm64 = { asset_pattern = "emmylua_check-darwin-arm64.tar.gz" }
+platforms.macos-x64 = { asset_pattern = "emmylua_check-darwin-x64.tar.gz" }
+
+[tools.emmylua_ls]
+version = "0.25.1"
+bin = "emmylua_ls"
+platforms.linux-x64 = { asset_pattern = "emmylua_ls-linux-x64.tar.gz" }
+platforms.macos-arm64 = { asset_pattern = "emmylua_ls-darwin-arm64.tar.gz" }
+platforms.macos-x64 = { asset_pattern = "emmylua_ls-darwin-x64.tar.gz" }
 
 ################################################################################
 # Env
 ################################################################################
 
 [env]
-_.source = { path = "./scripts/env.sh", tools = true }
+# .emmyrc.json loads Neovim's runtime as a type library through $VIMRUNTIME. An
+# editor sets it for its language server, but a shell running `emmylua_check`
+# does not.
+VIMRUNTIME = { value = "{{ exec(command='nvim --clean --headless +\"lua io.stdout:write(vim.env.VIMRUNTIME)\" +qa') }}", tools = true }
 
 ################################################################################
 # Tasks
 ################################################################################
 
 [tasks]
-lint = "emmylua_check --warnings-as-errors --ignore '.prefix/**/*.*' ."
 fmt = "stylua ."
 "fmt:check" = "stylua --check ."
 
-[tasks."test:prepare"]
-run = "luarocks test --prepare"
+[tasks.lint]
+run = "emmylua_check --warnings-as-errors ."
+
+[tasks."test:version"]
+usage = '''
+arg "<version>"
+flag "--coverage"
+'''
+run = '''
+tool="aqua:neovim/neovim@$usage_version"
+[ "$usage_version" = nightly ] && tool='vfox:jdx/vfox-neovim@nightly'
+# With auto-install off, `mise exec` on a missing version warns and runs the
+# default `nvim` from PATH, so the suite would pass under the wrong version.
+# Installing first makes a missing version an error instead.
+mise install "$tool"
+# The nightly tag moves, so refresh it when its checksum changed.
+[ "$usage_version" = nightly ] && { mise upgrade "$tool" >/dev/null 2>&1 || true; }
+mise exec "$tool" -- nvim --clean -l lua/args/vendor/test.lua ${usage_coverage:+--coverage}
+'''
 
 [tasks.test]
-depends = ["test:prepare"]
-run = "busted --verbose"
+run = "mise run test:version 0.12.6"
 
 [tasks."test:coverage"]
-depends = ["test:prepare"]
-run = '''
-rm -f ./luacov.*.*
-busted --coverage --verbose
-luacov
-awk '/^Summary$/{flag=1;next} flag{print}' luacov.report.out
-'''
+run = "mise run test:version --coverage 0.12.6"
 
 [tasks.ci]
 run = '''
@@ -62,7 +91,6 @@ tag="$(git describe --tags --exact-match --match 'v*' HEAD 2>/dev/null)" || {
   exit 1
 }
 
-git submodule update --init --recursive
 test -z "$(git status --porcelain)" || {
   echo "release: working tree is not clean" >&2
   exit 1
@@ -75,10 +103,15 @@ mise run ci
 mkdir -p dist
 cp lua/args.lua dist/args.lua
 
-# Run the published copy through plain Lua 5.1, and prepend its directory
-# inside the chunk. mise's `lua` shim replaces LUA_PATH in the environment, so
-# setting package.path here is what makes `require 'args'` load the copy.
-lua -e "package.path = 'dist/?.lua;' .. package.path; local cli = require 'args'; local args = cli.parse({ add = { ['--force'] = 'boolean' } }, { 'add', '--force', 'file' }); assert(args.add['--force'] == true and args.add._[1] == 'file')"
+# Load the published copy rather than lua/args.lua, so the check covers the
+# file a user downloads. `--clean` keeps any installed copy off the runtime
+# path, and the prepended package.path makes `require 'args'` find dist/ first.
+nvim --clean -l /dev/stdin <<'LUA'
+package.path = 'dist/?.lua;' .. package.path
+local cli = require 'args'
+local args = cli.parse({ add = { ['--force'] = 'boolean' } }, { 'add', '--force', 'file' })
+assert(args.add['--force'] == true and args.add._[1] == 'file')
+LUA
 
 # Hash from inside dist so the checksum names `args.lua`.
 (cd dist && shasum -a 256 args.lua > args.lua.sha256)
