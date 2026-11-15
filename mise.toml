@@ -13,7 +13,7 @@ emmylua_ls = "github:EmmyLuaLs/emmylua-analyzer-rust"
 stylua = "2.6.0"
 # `mise run release` publishes through the gh CLI.
 gh = "2.103.3"
-"github:jrop/nvim-bundle" = "0.4.1"
+"github:jrop/nvim-bundle" = "0.5.0"
 
 [tools.emmylua_check]
 version = "0.25.1"

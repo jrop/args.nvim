@@ -1,5 +1,5 @@
 {
-  "dependencies": {
+  "dev_dependencies": {
     "test": {
       "entry": "test",
       "ref": "v0.3.0",
