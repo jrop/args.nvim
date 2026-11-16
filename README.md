@@ -102,10 +102,27 @@ a test helper can require it.
 
 ## Install
 
+Vendor args.nvim into your plugin with
+[nvim-bundle](https://github.com/jrop/nvim-bundle#install):
+
+```sh
+nvim-bundle install jrop/args.nvim args
+```
+
+This writes `lua/<your-plugin>/vendor/args.lua` and records the release it used
+in `nvim-bundle.json`, so your code loads the parser with:
+
+```lua
+local cli = require '<your-plugin>.vendor.args'
+```
+
+Append `@<tag>` to the repository to pin another release, and run
+`nvim-bundle update args` to move to the newest one.
+
 ### From a GitHub release
 
-Each release attaches `args.lua` and `args.lua.sha256`. Download the module,
-verify it, and install it where Neovim can require it:
+To install the module globally instead, download `args.lua` and its checksum
+from a release, verify it, and install it where Neovim can require it:
 
 ```sh
 version=v0.1.0
