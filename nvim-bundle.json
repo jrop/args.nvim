@@ -1,8 +1,9 @@
 {
+  "dependencies": {},
   "dev_dependencies": {
     "test": {
       "entry": "test",
-      "ref": "v0.3.0",
+      "ref": "v0.4.2",
       "repo": "jrop/test.nvim"
     }
   },
